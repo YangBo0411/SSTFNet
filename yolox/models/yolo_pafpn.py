@@ -11,17 +11,17 @@ import torch.nn.functional as F
 import numpy as np 
 import math
 
-def autopad(k, p=None, d=1):  # kernel, padding, dilation
-    # Pad to 'same' shape outputs
+def autopad(k, p=None, d=1): 
+   
     if d > 1:
-        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]  # actual kernel-size
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k] 
     if p is None:
-        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k] 
     return p
 
 class Conv(nn.Module):
-    # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
-    default_act = nn.SiLU()  # default activation
+   
+    default_act = nn.SiLU() 
 
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
         super().__init__()
@@ -42,10 +42,10 @@ class EnhancedSpatialAttention(nn.Module):
         super().__init__()
         self.deformable = deformable
         
-        if deformable:  # 可变形卷积版本
-            self.offset_conv = nn.Conv2d(2, 18, 3, padding=1)  # 生成offset参数
-            # self.sa_conv = DeformConv2d(2, 1, 3, padding=1)
-        else:           # 多尺度版本
+        if deformable: 
+            self.offset_conv = nn.Conv2d(2, 18, 3, padding=1) 
+           
+        else:          
             self.conv3 = nn.Conv2d(2, 1, 3, padding=1, padding_mode='reflect')
             self.conv5 = nn.Conv2d(2, 1, 5, padding=2, padding_mode='reflect')
             self.conv7 = nn.Conv2d(2, 1, 7, padding=3, padding_mode='reflect')
@@ -60,7 +60,7 @@ class EnhancedSpatialAttention(nn.Module):
         
         if self.deformable:
             offset = self.offset_conv(x_cat)
-            # att = self.sa_conv(x_cat, offset)
+           
         else:
             scale3 = self.conv3(x_cat)
             scale5 = self.conv5(x_cat)
@@ -75,7 +75,7 @@ class EnhancedChannelAttention(nn.Module):
         self.use_std = use_std
         self.reduction = reduction
         
-        # 双路径结构
+       
         self.max_path = nn.Sequential(
             nn.Conv2d(dim, dim//reduction, 1, bias=False),
             nn.ReLU(),
@@ -88,7 +88,7 @@ class EnhancedChannelAttention(nn.Module):
             nn.Conv2d(dim//reduction, dim, 1, bias=False)
         )
         
-        if use_std:  # 标准差分支
+        if use_std: 
             self.std_path = nn.Sequential(
                 nn.Conv2d(dim, dim//reduction, 1, bias=False),
                 nn.ReLU(),
@@ -96,7 +96,7 @@ class EnhancedChannelAttention(nn.Module):
             )
         
         self.sigmoid = nn.Sigmoid()
-        self.gamma = nn.Parameter(torch.zeros(1))  # 可学习残差参数
+        self.gamma = nn.Parameter(torch.zeros(1)) 
 
     def forward(self, x):
         max_pool = torch.amax(x, dim=(2,3), keepdim=True)
@@ -121,27 +121,27 @@ class EnhancedHFF(nn.Module):
         self.ca = ChannelAttention(dim, reduction, use_std=use_std)
         self.pa = PA(dim)
         
-        # 最终的融合卷积
+       
         self.fusion = nn.Conv2d(dim, dim, 1, padding_mode='reflect')
         nn.init.kaiming_normal_(self.fusion.weight, mode='fan_out', nonlinearity='leaky_relu')
         
-        # 初始化参数
-        self.alpha = nn.Parameter(torch.ones(1))  # 可学习混合权重
-        self.beta = nn.Parameter(torch.zeros(1))  # 残差连接系数
+       
+        self.alpha = nn.Parameter(torch.ones(1)) 
+        self.beta = nn.Parameter(torch.zeros(1)) 
 
     def forward(self, data):
         x, y = data
-        base = x + y  # 基础融合特征
+        base = x + y 
         
-        # 交叉注意力生成
+       
         s_att = self.sa(base)
         c_att = self.ca(base)
         
-        # 注意力交互机制（空间注意力引导通道）
-        hybrid_att = c_att * s_att  # 乘积融合代替简单相加
+       
+        hybrid_att = c_att * s_att 
         pa_feature = self.pa(base, hybrid_att)
         
-        # 加权残差融合
+       
         enhanced = base + self.alpha * pa_feature
         out = self.fusion(enhanced) + self.beta * base
         return out
@@ -173,12 +173,12 @@ class ChannelAttention(nn.Module):
         )
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):  # 1 128 80 80 
-        max = self.maxpool(x) # 1 128 1 1 
-        avg = self.avgpool(x) # 1 128 1 1 
-        max_ca = self.ca(max) # 1 128 1 1 
-        avg_ca = self.ca(avg) # 1 128 1 1 
-        output = self.sigmoid(max_ca + avg_ca) # 1 128 1 1
+    def forward(self, x): 
+        max = self.maxpool(x)
+        avg = self.avgpool(x)
+        max_ca = self.ca(max)
+        avg_ca = self.ca(avg)
+        output = self.sigmoid(max_ca + avg_ca)
         return output
 
 class PA(nn.Module):
@@ -191,7 +191,7 @@ class PA(nn.Module):
 
     def forward(self, x, att):
         x = self.conv(x)
-        # x = self.sigmoid(x)
+       
         y = att
         out = torch.mul(x, y)
         return out
@@ -236,7 +236,7 @@ class CPCA(nn.Module):
         self.act = nn.GELU()
 
     def forward(self, inputs):
-        #   Global Perceptron
+       
         inputs = self.conv(inputs)
         inputs = self.act(inputs)
         
@@ -304,69 +304,69 @@ class CoordAtt(nn.Module):
         self.conv_w = nn.Conv2d(mip, inp, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
-        identity = x  # 1 128 80 80 
+        identity = x 
 
         n, c, h, w = x.size()
-        x_h = self.pool_h(x)   # 1 128 80 1
-        x_w = self.pool_w(x).permute(0, 1, 3, 2)  # 1 128 80 1
+        x_h = self.pool_h(x)  
+        x_w = self.pool_w(x).permute(0, 1, 3, 2) 
 
-        y = torch.cat([x_h, x_w], dim=2)  # 1 128 160 1
-        y = self.conv1(y)       # 1 8 160 1
-        y = self.bn1(y)         # 1 8 160 1
-        y = self.act(y)         # 1 8 160 1
+        y = torch.cat([x_h, x_w], dim=2) 
+        y = self.conv1(y)      
+        y = self.bn1(y)        
+        y = self.act(y)        
 
-        x_h, x_w = torch.split(y, [h, w], dim=2)  # 1 8 80 1 , 1 8 80 1
-        x_w = x_w.permute(0, 1, 3, 2)  # 1 8 1 80
+        x_h, x_w = torch.split(y, [h, w], dim=2) 
+        x_w = x_w.permute(0, 1, 3, 2) 
 
-        a_h = self.conv_h(x_h).sigmoid()  # 1 128 80 1
-        a_w = self.conv_w(x_w).sigmoid()  # 1 128 1 80
+        a_h = self.conv_h(x_h).sigmoid() 
+        a_w = self.conv_w(x_w).sigmoid() 
 
-        out = identity * a_w * a_h  # 1 128 80 80 
+        out = identity * a_w * a_h 
 
         return out
 
 
-class HFF(nn.Module):              #  Crosslayer_space_channel_fusion
+class HFF(nn.Module):             
     def __init__(self, dim, reduction=8):
         super(HFF, self).__init__()
-        # self.sa = SpatialAttention()                  # 源码
-        # self.ca = ChannelAttention(dim, reduction)    # 源码
+       
+       
         
-        #yb
+       
         self.sa = CoordAtt(dim)
         self.ca = ChannelAttention(dim, reduction)
-        # self.cpca = CPCA(dim)
+       
         self.caa = CAA(dim)
-        # self.ca = CPCA_ChannelAttention(dim, dim)     # yb CPCA-CA
-        #yb
+       
+       
 
         self.pa = PA(dim)
         self.conv = nn.Conv2d(dim, dim, 1, bias=True)
         self.sigmoid = nn.Sigmoid()
-        self.alpha = nn.Parameter(torch.ones(1))  # 可学习混合权重
-        self.beta = nn.Parameter(torch.zeros(1))  # 残差连接系数
+        self.alpha = nn.Parameter(torch.ones(1)) 
+        self.beta = nn.Parameter(torch.zeros(1)) 
 
     def forward(self, data):
         x, y = data
         raw = x + y
 
-        # 源码
+       
         cattn = self.ca(raw)
         sattn = self.sa(raw)
         mix_att = sattn + cattn
         new = self.sigmoid(self.pa(raw, mix_att))
         out = raw + new * x + (1 - new) * y
         out = self.conv(out)
-        # 源码
+       
 
-        #yb
-        # out = self.cpca(raw)
-        # out = self.caa(raw)
-        #yb
+       
+       
+       
+       
 
         return out
     
-class CSCF(nn.Module):              #  Crosslayer_space_channel_fusion
+class CSCF(nn.Module):             
     def __init__(self, dim, reduction=8):
         super(CSCF, self).__init__()
         self.sa = CoordAtt(dim)
@@ -374,18 +374,18 @@ class CSCF(nn.Module):              #  Crosslayer_space_channel_fusion
         self.pa = PA(dim)
         self.conv = nn.Conv2d(dim, dim, 1, bias=True)
         self.sigmoid = nn.Sigmoid()
-        self.alpha = nn.Parameter(torch.ones(1))  # 可学习混合权重
-        self.beta = nn.Parameter(torch.zeros(1))  # 残差连接系数
+        self.alpha = nn.Parameter(torch.ones(1)) 
+        self.beta = nn.Parameter(torch.zeros(1)) 
 
-    def forward(self, data):  # 1 128 80 80 ； 1 128 80 80
-        x, y = data  # 1 128 80 80 ； 1 128 80 80
-        raw = x + y  # 1 128 80 80
-        cattn = self.ca(raw)  # 1 128 1 1
-        sattn = self.sa(raw)  # 1 128 80 80
-        mix_att = sattn + cattn  # 1 128 80 80
-        new = self.sigmoid(self.pa(raw, mix_att)) # 1 128 80 80
-        out = raw + new * x + (1 - new) * y  # 1 128 80 80
-        out = self.conv(out)   # 1 128 80 80
+    def forward(self, data): 
+        x, y = data 
+        raw = x + y 
+        cattn = self.ca(raw) 
+        sattn = self.sa(raw) 
+        mix_att = sattn + cattn 
+        new = self.sigmoid(self.pa(raw, mix_att))
+        out = raw + new * x + (1 - new) * y 
+        out = self.conv(out)  
 
         return out
 
@@ -400,17 +400,17 @@ class HFF_new(nn.Module):
 
     def forward(self, data):
         x, y = data
-        base = x + y  # 基础融合特征
+        base = x + y 
         
-        # 交叉注意力生成
+       
         s_att = self.sa(base)
         c_att = self.ca(base)
         
-        # 注意力交互机制（空间注意力引导通道）
-        hybrid_att = c_att * s_att  # 乘积融合代替简单相加
+       
+        hybrid_att = c_att * s_att 
         pa_feature = self.pa(base, hybrid_att)
         
-        # 加权残差融合
+       
         enhanced = base + self.alpha * pa_feature
         out = self.fusion(enhanced) + self.beta * base
         return out
@@ -444,23 +444,23 @@ class MultiScalePCA(nn.Module):
                                      padding=1, output_padding=1)
 
     def forward(self, x):
-        x1, x2 = x   # x1 1 128 80 80 ; x2  1 256 40 40
-        x1_ = self.avg1(x1)   # 1 128 1 1
-        x2_ = self.avg2(x2)   # 1 256 1 1
+        x1, x2 = x  
+        x1_ = self.avg1(x1)  
+        x2_ = self.avg2(x2)  
 
-        x1_ = self.conv1(x1_.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)  # 1 128 1 1
-        x2_ = self.conv2(x2_.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)  # 1 256 1 1
+        x1_ = self.conv1(x1_.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1) 
+        x2_ = self.conv2(x2_.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1) 
 
-        x_middle = torch.cat((x1_, x2_), dim=1)     # 1 384 1 1
-        x_middle = self.conv3(x_middle.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)   # 1 384 1 1
-        x_middle = self.sigmoid(x_middle)    # 1 384 1 1
+        x_middle = torch.cat((x1_, x2_), dim=1)    
+        x_middle = self.conv3(x_middle.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)  
+        x_middle = self.sigmoid(x_middle)   
 
-        x_1, x_2 = torch.split(x_middle, [self.input_channel1, self.input_channel2], dim=1) # x1 1 128 1 1; x2 1 256 1 1 
+        x_1, x_2 = torch.split(x_middle, [self.input_channel1, self.input_channel2], dim=1)
 
-        x1_out = x1 * x_1   # 1 128 80 80
-        x2_out = x2 * x_2   # 1 256 40 40
+        x1_out = x1 * x_1  
+        x2_out = x2 * x_2  
 
-        x2_out = self.up(x2_out)    # 1 128 80 80
+        x2_out = self.up(x2_out)   
 
         result = x1_out + x2_out
         return result
@@ -527,7 +527,7 @@ class PAFPN(nn.Module):
         self.backbone = SFnet(depth, width, depthwise=depthwise, act=act)
         self.in_features = in_features
         self.in_channels = in_channels
-        # self.fusion = Fusion
+       
         Conv = DWConv if depthwise else BaseConv
 
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
@@ -535,21 +535,21 @@ class PAFPN(nn.Module):
             int(in_channels[2] * width), int(in_channels[1] * width), 1, 1, act=act
         )
         self.C3_p4 = CSPLayer(
-            int(2 * in_channels[1] * width),      # 源码
-            # int(in_channels[1] * width),  # yb
+            int(2 * in_channels[1] * width),     
+           
             int(in_channels[1] * width),
             round(3 * depth),
             False,
             depthwise=depthwise,
             act=act,
-        )  # cat
+        ) 
 
         self.reduce_conv1 = BaseConv(
             int(in_channels[1] * width), int(in_channels[0] * width), 1, 1, act=act
         )
         self.C3_p3 = CSPLayer(
-            int(2 * in_channels[0] * width),  # 源码
-            # int(in_channels[0] * width),  # yb
+            int(2 * in_channels[0] * width), 
+           
             int(in_channels[0] * width),
             round(3 * depth),
             False,
@@ -557,13 +557,13 @@ class PAFPN(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv2 = Conv(
             int(in_channels[0] * width), int(in_channels[0] * width), 3, 2, act=act
         )
         self.C3_n3 = CSPLayer(
-            int(2 * in_channels[0] * width),       # 源码
-            # int( in_channels[0] * width),      # yb
+            int(2 * in_channels[0] * width),      
+           
             int(in_channels[1] * width),
             round(3 * depth),
             False,
@@ -571,34 +571,34 @@ class PAFPN(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv1 = Conv(
             int(in_channels[1] * width), int(in_channels[1] * width), 3, 2, act=act
         )
         self.C3_n4 = CSPLayer(
-            int(2 * in_channels[1] * width),      # 源码
-            # int( in_channels[1] * width),           # yb
+            int(2 * in_channels[1] * width),     
+           
             int(in_channels[2] * width),
             round(3 * depth),
             False,
             depthwise=depthwise,
             act=act,
         )
-        self.hff_p2 = CSCF(dim=int(in_channels[0] * width))  # 用于 pan_out2 和 x2 的融合
-        self.hff_p1 = CSCF(dim=int(in_channels[1] * width))  # 用于 pan_out1 和 x1 的融合
-        self.hff_p0 = CSCF(dim=int(in_channels[2] * width))  # 用于 pan_out0 和 x0 的融合
+        self.hff_p2 = CSCF(dim=int(in_channels[0] * width)) 
+        self.hff_p1 = CSCF(dim=int(in_channels[1] * width)) 
+        self.hff_p0 = CSCF(dim=int(in_channels[2] * width)) 
 
-        # self.hff_p2 = EnhancedHFF(dim=int(in_channels[0] * width))  # 用于 pan_out2 和 x2 的融合
-        # self.hff_p1 = EnhancedHFF(dim=int(in_channels[1] * width))  # 用于 pan_out1 和 x1 的融合
-        # self.hff_p0 = EnhancedHFF(dim=int(in_channels[2] * width))  # 用于 pan_out0 和 x0 的融合
+       
+       
+       
 
-        # self.hff_p2 = MultiScalePCA(input_channel=[128,256])  # 用于 pan_out2 和 x2 的融合
-        # self.hff_p1 = MultiScalePCA(input_channel=[256,512])  # 用于 pan_out1 和 x1 的融合
-        # self.hff_p0 = MultiScalePCA(input_channel=[256,512])  # 用于 pan_out0 和 x0 的融合
+       
+       
+       
 
-        # self.hff_p2 = MultiScaleGatedAttn(dims=[128,128])  # 用于 pan_out2 和 x2 的融合
-        # self.hff_p1 = MultiScaleGatedAttn(dims=[256,256])  # 用于 pan_out1 和 x1 的融合
-        # self.hff_p0 = MultiScaleGatedAttn(dims=[512,512])  # 用于 pan_out0 和 x0 的融合
+       
+       
+       
     def forward(self, input):
         """
         Args:
@@ -608,36 +608,36 @@ class PAFPN(nn.Module):
             Tuple[Tensor]: FPN feature.
         """
 
-        #  backbone
+       
         out_features = self.backbone(input)
         features = [out_features[f] for f in self.in_features]
-        [x2, x1, x0] = features                 # 1 128 80 80 (8倍) \ 1 256 40 40 (16倍) \  1 512 20 20  (32倍)
+        [x2, x1, x0] = features                
 
-        fpn_out0 = self.lateral_conv0(x0)  # 1024->512/32   1 256 20 20
-        f_out0 = self.upsample(fpn_out0)  # 512/16  1 256 40 40 
-        f_out0 = torch.cat([f_out0, x1], 1)  # 512->1024/16  # 源码      1 512  40 40
-        # f_out0 = self.hff_p0([f_out0, x0]) # yb
+        fpn_out0 = self.lateral_conv0(x0) 
+        f_out0 = self.upsample(fpn_out0) 
+        f_out0 = torch.cat([f_out0, x1], 1) 
+       
 
-        f_out0 = self.C3_p4(f_out0)  # 1024->512/16     1 256 40 40
+        f_out0 = self.C3_p4(f_out0) 
 
-        fpn_out1 = self.reduce_conv1(f_out0)  # 512->256/16   1 128 40 40 
-        f_out1 = self.upsample(fpn_out1)  # 256/8        1 128 80 80
-        f_out1 = torch.cat([f_out1, x2], 1)  # 256->512/8    # 源码    1 256 80 80 
-        # f_out1 = self.hff_p0([f_out1, x1])  # yb
-        pan_out2 = self.C3_p3(f_out1)  # 512->256/8    1 128  80 80 
+        fpn_out1 = self.reduce_conv1(f_out0) 
+        f_out1 = self.upsample(fpn_out1) 
+        f_out1 = torch.cat([f_out1, x2], 1) 
+       
+        pan_out2 = self.C3_p3(f_out1) 
 
-        p_out1 = self.bu_conv2(pan_out2)  # 256->256/16    1 128 40 40 
-        p_out1 = torch.cat([p_out1, fpn_out1], 1)  # 256->512/16  # 源码   1 256 40 40 
-        pan_out1 = self.C3_n3(p_out1)  # 512->512/16    1 256 40 40
+        p_out1 = self.bu_conv2(pan_out2) 
+        p_out1 = torch.cat([p_out1, fpn_out1], 1) 
+        pan_out1 = self.C3_n3(p_out1) 
 
-        p_out0 = self.bu_conv1(pan_out1)  # 512->512/32   1 256 20 20 
-        p_out0 = torch.cat([p_out0, fpn_out0], 1)  # 512->1024/32  # 源码   1 512 20 20 
-        pan_out0 = self.C3_n4(p_out0)  # 1024->1024/32  1 512 20 20
+        p_out0 = self.bu_conv1(pan_out1) 
+        p_out0 = torch.cat([p_out0, fpn_out0], 1) 
+        pan_out0 = self.C3_n4(p_out0) 
 
-        # HFF
-        pan_out2 = self.hff_p2([pan_out2, x2])  # pan_out2 与 x2 融合
-        pan_out1 = self.hff_p1([pan_out1, x1])  # pan_out1 与 x1 融合
-        pan_out0 = self.hff_p0([pan_out0, x0])  # pan_out0 与 x0 融合
+       
+        pan_out2 = self.hff_p2([pan_out2, x2]) 
+        pan_out1 = self.hff_p1([pan_out1, x1]) 
+        pan_out0 = self.hff_p0([pan_out0, x0]) 
 
         outputs = (pan_out2, pan_out1, pan_out0)
         return outputs
@@ -674,27 +674,27 @@ class YOLOPAFPN_Swin(nn.Module):
         Conv = DWConv if depthwise else BaseConv
 
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
-        # self.lateral_conv0 = BaseConv(
-        #     int(in_channels[2] * width), int(out_channels[1] * width), 1, 1, act=act
-        # )
+       
+       
+       
         self.lateral_conv0 = BaseConv(
             int(in_channels[2] * swin_width), int(out_channels[1] * width), 1, 1, act=act
         )
         self.C3_p4 = CSPLayer(
-            #int(2 * out_channels[1] * width),
+           
             int(in_channels[1] + out_channels[1] * width),
             int(out_channels[1] * width),
             round(3 * depth),
             False,
             depthwise=depthwise,
             act=act,
-        )  # cat
+        ) 
 
         self.reduce_conv1 = BaseConv(
             int(out_channels[1] * width), int(out_channels[0] * width), 1, 1, act=act
         )
         self.C3_p3 = CSPLayer(
-            #int(2 * out_channels[0] * width),
+           
             int(in_channels[0]  + out_channels[0] * width),
             int(out_channels[0] * width),
             round(3 * depth),
@@ -703,7 +703,7 @@ class YOLOPAFPN_Swin(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv2 = Conv(
             int(out_channels[0] * width), int(out_channels[0] * width), 3, 2, act=act
         )
@@ -716,7 +716,7 @@ class YOLOPAFPN_Swin(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv1 = Conv(
             int(out_channels[1] * width), int(out_channels[1] * width), 3, 2, act=act
         )
@@ -738,28 +738,28 @@ class YOLOPAFPN_Swin(nn.Module):
             Tuple[Tensor]: FPN feature.
         """
 
-        #  backbone
+       
         out_features = self.backbone(input)
         features = [out_features[f] for f in self.in_features]
         [x2, x1, x0] = features
 
-        fpn_out0 = self.lateral_conv0(x0)  # 2048->512/32
-        f_out0 = self.upsample(fpn_out0)  # 512/16
-        f_out0 = torch.cat([f_out0, x1], 1)  # 512->1024/16
-        f_out0 = self.C3_p4(f_out0)  # 1536->512/16
+        fpn_out0 = self.lateral_conv0(x0) 
+        f_out0 = self.upsample(fpn_out0) 
+        f_out0 = torch.cat([f_out0, x1], 1) 
+        f_out0 = self.C3_p4(f_out0) 
 
-        fpn_out1 = self.reduce_conv1(f_out0)  # 512->256/16
-        f_out1 = self.upsample(fpn_out1)  # 256/8
-        f_out1 = torch.cat([f_out1, x2], 1)  # 256->512/8
-        pan_out2 = self.C3_p3(f_out1)  # 768->256/8
+        fpn_out1 = self.reduce_conv1(f_out0) 
+        f_out1 = self.upsample(fpn_out1) 
+        f_out1 = torch.cat([f_out1, x2], 1) 
+        pan_out2 = self.C3_p3(f_out1) 
 
-        p_out1 = self.bu_conv2(pan_out2)  # 256->256/16
-        p_out1 = torch.cat([p_out1, fpn_out1], 1)  # 256->512/16
-        pan_out1 = self.C3_n3(p_out1)  # 512->512/16
+        p_out1 = self.bu_conv2(pan_out2) 
+        p_out1 = torch.cat([p_out1, fpn_out1], 1) 
+        pan_out1 = self.C3_n3(p_out1) 
 
-        p_out0 = self.bu_conv1(pan_out1)  # 512->512/32
-        p_out0 = torch.cat([p_out0, fpn_out0], 1)  # 512->1024/32
-        pan_out0 = self.C3_n4(p_out0)  # 1024->1024/32
+        p_out0 = self.bu_conv1(pan_out1) 
+        p_out0 = torch.cat([p_out0, fpn_out0], 1) 
+        pan_out0 = self.C3_n4(p_out0) 
 
         outputs = (pan_out2, pan_out1, pan_out0)
         return outputs
@@ -798,7 +798,7 @@ class YOLOPAFPN_ResNet(nn.Module):
             False,
             depthwise=depthwise,
             act=act,
-        )  # cat
+        ) 
 
         self.reduce_conv1 = BaseConv(
             int(out_channels[1] * width), int(out_channels[0] * width), 1, 1, act=act
@@ -812,7 +812,7 @@ class YOLOPAFPN_ResNet(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv2 = Conv(
             int(out_channels[0] * width), int(out_channels[0] * width), 3, 2, act=act
         )
@@ -825,7 +825,7 @@ class YOLOPAFPN_ResNet(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv1 = Conv(
             int(out_channels[1] * width), int(out_channels[1] * width), 3, 2, act=act
         )
@@ -847,28 +847,28 @@ class YOLOPAFPN_ResNet(nn.Module):
             Tuple[Tensor]: FPN feature.
         """
 
-        #  backbone
+       
         out_features = self.backbone(input)
         features = [out_features[f] for f in self.in_features]
         [x2, x1, x0] = features
 
-        fpn_out0 = self.lateral_conv0(x0)  # 2048->512/32
-        f_out0 = self.upsample(fpn_out0)  # 512/16
-        f_out0 = torch.cat([f_out0, x1], 1)  # 512->1024/16
-        f_out0 = self.C3_p4(f_out0)  # 1536->512/16
+        fpn_out0 = self.lateral_conv0(x0) 
+        f_out0 = self.upsample(fpn_out0) 
+        f_out0 = torch.cat([f_out0, x1], 1) 
+        f_out0 = self.C3_p4(f_out0) 
 
-        fpn_out1 = self.reduce_conv1(f_out0)  # 512->256/16
-        f_out1 = self.upsample(fpn_out1)  # 256/8
-        f_out1 = torch.cat([f_out1, x2], 1)  # 256->512/8
-        pan_out2 = self.C3_p3(f_out1)  # 768->256/8
+        fpn_out1 = self.reduce_conv1(f_out0) 
+        f_out1 = self.upsample(fpn_out1) 
+        f_out1 = torch.cat([f_out1, x2], 1) 
+        pan_out2 = self.C3_p3(f_out1) 
 
-        p_out1 = self.bu_conv2(pan_out2)  # 256->256/16
-        p_out1 = torch.cat([p_out1, fpn_out1], 1)  # 256->512/16
-        pan_out1 = self.C3_n3(p_out1)  # 512->512/16
+        p_out1 = self.bu_conv2(pan_out2) 
+        p_out1 = torch.cat([p_out1, fpn_out1], 1) 
+        pan_out1 = self.C3_n3(p_out1) 
 
-        p_out0 = self.bu_conv1(pan_out1)  # 512->512/32
-        p_out0 = torch.cat([p_out0, fpn_out0], 1)  # 512->1024/32
-        pan_out0 = self.C3_n4(p_out0)  # 1024->1024/32
+        p_out0 = self.bu_conv1(pan_out1) 
+        p_out0 = torch.cat([p_out0, fpn_out0], 1) 
+        pan_out0 = self.C3_n4(p_out0) 
 
         outputs = (pan_out2, pan_out1, pan_out0)
         return outputs
@@ -925,7 +925,7 @@ class YOLOPAFPN_focal(nn.Module):
             False,
             depthwise=depthwise,
             act=act,
-        )  # cat
+        ) 
 
         self.reduce_conv1 = BaseConv(
             int(out_channels[1] * width), int(out_channels[0] * width), 1, 1, act=act
@@ -939,7 +939,7 @@ class YOLOPAFPN_focal(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv2 = Conv(
             int(out_channels[0] * width), int(out_channels[0] * width), 3, 2, act=act
         )
@@ -952,7 +952,7 @@ class YOLOPAFPN_focal(nn.Module):
             act=act,
         )
 
-        # bottom-up conv
+       
         self.bu_conv1 = Conv(
             int(out_channels[1] * width), int(out_channels[1] * width), 3, 2, act=act
         )
@@ -974,59 +974,59 @@ class YOLOPAFPN_focal(nn.Module):
             Tuple[Tensor]: FPN feature.
         """
 
-        #  backbone
+       
         out_features = self.backbone(input)
 
         features = [out_features[f] for f in self.in_features]
         [x2, x1, x0] = features
 
-        fpn_out0 = self.lateral_conv0(x0)  # 2048->512/32
-        f_out0 = self.upsample(fpn_out0)  # 512/16
-        f_out0 = torch.cat([f_out0, x1], 1)  # 512->1024/16
-        f_out0 = self.C3_p4(f_out0)  # 1536->512/16
+        fpn_out0 = self.lateral_conv0(x0) 
+        f_out0 = self.upsample(fpn_out0) 
+        f_out0 = torch.cat([f_out0, x1], 1) 
+        f_out0 = self.C3_p4(f_out0) 
 
-        fpn_out1 = self.reduce_conv1(f_out0)  # 512->256/16
-        f_out1 = self.upsample(fpn_out1)  # 256/8
-        f_out1 = torch.cat([f_out1, x2], 1)  # 256->512/8
-        pan_out2 = self.C3_p3(f_out1)  # 768->256/8
+        fpn_out1 = self.reduce_conv1(f_out0) 
+        f_out1 = self.upsample(fpn_out1) 
+        f_out1 = torch.cat([f_out1, x2], 1) 
+        pan_out2 = self.C3_p3(f_out1) 
 
-        p_out1 = self.bu_conv2(pan_out2)  # 256->256/16
-        p_out1 = torch.cat([p_out1, fpn_out1], 1)  # 256->512/16
-        pan_out1 = self.C3_n3(p_out1)  # 512->512/16
+        p_out1 = self.bu_conv2(pan_out2) 
+        p_out1 = torch.cat([p_out1, fpn_out1], 1) 
+        pan_out1 = self.C3_n3(p_out1) 
 
-        p_out0 = self.bu_conv1(pan_out1)  # 512->512/32
-        p_out0 = torch.cat([p_out0, fpn_out0], 1)  # 512->1024/32
-        pan_out0 = self.C3_n4(p_out0)  # 1024->1024/32
+        p_out0 = self.bu_conv1(pan_out1) 
+        p_out0 = torch.cat([p_out0, fpn_out0], 1) 
+        pan_out0 = self.C3_n4(p_out0) 
 
         outputs = (pan_out2, pan_out1, pan_out0)
         return outputs
 
-        # features = [out_features[f] for f in self.in_features]
-        # [x3, x2, x1, x0] = features
-        #
-        # fpn_out0 = self.lateral_conv0(x0)  # oc4 -> oc3, /16
-        # fu_out0 = self.upsample(fpn_out0)  # /8
-        # f_out0 = torch.cat([fu_out0, x1], 1)  # oc3 * 2 -> oc3, /8
-        # f_out0 = self.C3_p4(f_out0)  # oc3, /8
-        #
-        # fpn_out1 = self.reduce_conv1(f_out0)  # oc3 -> oc2, /8
-        # fu_out1 = self.upsample(fpn_out1)  # oc2, /4
-        # f_out1 = torch.cat([fu_out1, x2], 1)  # oc2 * 2 -> oc2, /4
-        # pan_out3 = self.C3_p3(f_out1)  # oc2, /4
-        #
-        # fpn_out2 = self.reduce_conv2(pan_out3)  # oc2 -> oc1, /4
-        # f_out2 = self.upsample(fpn_out2)  # oc1, /2
-        # f_out2 = torch.cat([f_out2, x3], 1)  # oc1 * 2 -> oc1, /2
-        # pan_out2 = self.C3_p2(f_out2)  # oc1, /2
-        #
-        # p_out1 = self.bu_conv2(pan_out2)  # oc1 -> oc1, /4
-        # p_out1 = torch.cat([p_out1, fu_out1], 1)  # oc1 * 2, /4
-        # pan_out1 = self.C3_n3(p_out1)  # oc1 -> oc2, /4
-        #
-        # p_out0 = self.bu_conv1(pan_out1)  # oc2 -> oc2, /4
-        # p_out0 = torch.cat([p_out0, fu_out0], 1)  # oc2 * 2 -> oc2, /4
-        # pan_out0 = self.C3_n4(p_out0)  # oc2 -> oc3, /8
-        #
-        # outputs = (pan_out2, pan_out3, pan_out1, pan_out0)
-        #
-        # return outputs
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       
+       

@@ -59,7 +59,7 @@ class YOLOXHead(nn.Module):
         self.n_anchors = 1
         self.use_score = use_score
         self.num_classes = num_classes
-        self.decode_in_inference = True  # for deploy, set to False
+        self.decode_in_inference = True 
         self.gmode = gmode
         self.lmode = lmode
         self.both_mode = both_mode
@@ -70,12 +70,8 @@ class YOLOXHead(nn.Module):
         self.reg_preds = nn.ModuleList()
         self.obj_preds = nn.ModuleList()
         self.cls_convs2 = nn.ModuleList()
-        
-        #yb
-        # self.temporal_attn = TemporalAttention(embed_dim=128, num_heads=8, dropout=0.1, max_len=32)
-        self.temporal_attn = SSTA(embed_dim=128, num_heads=8, dropout=0.1, max_len=32)
-        #yb
 
+        self.temporal_attn = SSTA(embed_dim=128, num_heads=8, dropout=0.1, max_len=32)
 
         self.width = int(256 * width)
         self.sim_thresh = sim_thresh
@@ -85,9 +81,9 @@ class YOLOXHead(nn.Module):
         if gmode:
             self.trans = MSA_yolov(dim=self.width, out_dim=4 * self.width, num_heads=heads, attn_drop=drop)
 
-            # self.linear_pred = nn.Linear(int(4 * self.width), num_classes + 1)   # 源码
-            self.linear_pred = nn.Linear(int(self.width), num_classes + 1)     #yb
-            self.conf_pred = nn.Linear(int(self.width), 1)    #yb
+           
+            self.linear_pred = nn.Linear(int(self.width), num_classes + 1)    
+            self.conf_pred = nn.Linear(int(self.width), 1)   
         if lmode:
 
             if kwargs.get('reconf',False):
@@ -104,16 +100,8 @@ class YOLOXHead(nn.Module):
             self.g2l = nn.Linear(int(4 * self.width), self.width)
         self.stems = nn.ModuleList()
         self.kwargs = kwargs
-        Conv = DWConv if depthwise else BaseConv     # CBS
+        Conv = DWConv if depthwise else BaseConv    
 
-        # self.stems 一个卷积 in 256 512 1024  out 256   存储每个特征层级的“茎”卷积,用于进一步处理输入特征图，调整通道数和特征表示
-        # self.cls_convs  两个卷积 in 256 out 256       存储用于分类的卷积层序列，每个特征层级有一个对应的卷积序列
-        # self.reg_convs  同 self.cls_convs             存储额外的分类卷积层序列，用于生成更丰富的分类特征
-        # self.cls_preds  一个卷积 in 256 out 1（类别概率） 存储用于生成类别预测的 1x1 卷积层，每个特征层级有一个对应的预测层。
-        # self.reg_preds  一个卷积 in 256 out 4 （xywh）    存储用于生成边界框回归预测的 1x1 卷积层，每个特征层级有一个对应的预测层
-        # self.obj_preds  一个卷积 in 256 out 1 （目标概率） 存储用于生成目标置信度预测的 1x1 卷积层，每个特征层级有一个对应的预测层
-        # self.cls_convs2 同 self.cls_convs
-        
         for i in range(len(in_channels)):
             self.stems.append(
                 BaseConv(
@@ -187,7 +175,7 @@ class YOLOXHead(nn.Module):
             self.cls_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
-                    out_channels=self.n_anchors * self.num_classes,  #yb 输出类别预测 1
+                    out_channels=self.n_anchors * self.num_classes, 
                     kernel_size=1,
                     stride=1,
                     padding=0,
@@ -230,11 +218,11 @@ class YOLOXHead(nn.Module):
             b.data.fill_(-math.log((1 - prior_prob) / prior_prob))
             conv.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
-    # xin backbone输出的3个尺寸的特征bs16， labels 16 120 5  imgs原始图像 16 3 576 576
+   
     def forward(self, xin, labels=None, imgs=None, nms_thresh=0.5, lframe=0, gframe=32):    
         outputs = []
         outputs_decode = []
-        outputs_decode_nopostprocess = []   # yb
+        outputs_decode_nopostprocess = []  
         origin_preds = []
         x_shifts = []
         y_shifts = []
@@ -242,38 +230,30 @@ class YOLOXHead(nn.Module):
         before_nms_features = []
         before_nms_regf = []
 
-        # 循环遍历每个特征层级
-        # self.cls_convs：分类卷积层列表，每个层级一个。
-        # self.cls_convs2：额外的分类卷积层列表，用于更复杂的分类特征提取。
-        # self.reg_convs：回归卷积层列表，每个层级一个。
-        # self.strides：每个层级的步幅（stride），用于将特征图坐标映射到原始图像坐标。
-        # xin：输入的特征图列表，来自不同层级的 FPN 输出。
-        # k：当前循环的索引，表示特征层级。
-        # x：当前层级的输入特征图，形状通常为 [batch_size, in_channels, H, W] 16 28 72 72
 
         for k, (cls_conv, cls_conv2, reg_conv, stride_this_level, x) in enumerate(
                 zip(self.cls_convs, self.cls_convs2, self.reg_convs, self.strides, xin)
         ):
-            x = self.stems[k](x)        # 16 128 72 72  通过一个 1x1 卷积（BaseConv），调整特征图的通道数到统一的 256 * width，为后续的分类和回归卷积做准备
-            reg_feat = reg_conv(x)      # 16 128 72 72  通过回归卷积层，提取用于边界框回归的特征
-            cls_feat = cls_conv(x)      # 16 128 72 72  通过分类卷积层，提取用于类别预测的特征
-            cls_feat2 = cls_conv2(x)    # 16 128 72 72  通过额外的分类卷积层，生成更丰富的分类特征 新增
+            x = self.stems[k](x)       
+            reg_feat = reg_conv(x)     
+            cls_feat = cls_conv(x)     
+            cls_feat2 = cls_conv2(x)   
 
-            # this part should be the same as the original model
-            obj_output = self.obj_preds[k](reg_feat)    # 16 1 72 72 通过目标置信度预测卷积层，生成每个锚框的置信度得分 每个特征图1个锚框
-            reg_output = self.reg_preds[k](reg_feat)    # 16 4 72 72 通过边界框回归预测卷积层，生成每个锚框的回归参数
-            cls_output = self.cls_preds[k](cls_feat)    # 16 1 72 72 通过类别预测卷积层，生成每个锚框的类别得分 1个类别
+           
+            obj_output = self.obj_preds[k](reg_feat)   
+            reg_output = self.reg_preds[k](reg_feat)   
+            cls_output = self.cls_preds[k](cls_feat)   
             if self.training:
-                output = torch.cat([reg_output, obj_output, cls_output], 1)        # 16 6 72 72 将回归预测、目标置信度和类别得分沿通道维度拼接
-                output_decode = torch.cat(                                         # 新增
-                    [reg_output, obj_output.sigmoid(), cls_output.sigmoid()], 1    # 16 6 72 72 对目标置信度和类别得分应用sigmoid激活函数，
+                output = torch.cat([reg_output, obj_output, cls_output], 1)       
+                output_decode = torch.cat(                                        
+                    [reg_output, obj_output.sigmoid(), cls_output.sigmoid()], 1   
                 )
-                output, grid = self.get_output_and_grid(                        # 将输出转换为适合解码和后续处理的格式 [batch_size, anchors * H * W, channels]
-                    output, k, stride_this_level, xin[0].type()                 # stride_this_level 8 
+                output, grid = self.get_output_and_grid(                       
+                    output, k, stride_this_level, xin[0].type()                
                 )
-                x_shifts.append(grid[:, :, 0])                          # 分别记录每个预测框在 x 和 y 方向上的网格偏移。 1 5184
+                x_shifts.append(grid[:, :, 0])                         
                 y_shifts.append(grid[:, :, 1])
-                expanded_strides.append(                                # 记录当前层级的步幅（stride），用于将预测框坐标映射到原始图像坐标  1 5184   8 16 32                 
+                expanded_strides.append(                               
                     torch.zeros(1, grid.shape[1])
                     .fill_(stride_this_level)
                     .type_as(xin[0])
@@ -288,24 +268,24 @@ class YOLOXHead(nn.Module):
                         batch_size, -1, 4
                     )
                     origin_preds.append(reg_output.clone())
-                outputs.append(output)                      # 新增
-                before_nms_features.append(cls_feat2)       # 三个不同尺度下的特征
-                before_nms_regf.append(reg_feat)            # 新增
+                outputs.append(output)                     
+                before_nms_features.append(cls_feat2)      
+                before_nms_regf.append(reg_feat)           
             else:
                 output_decode = torch.cat(
                     [reg_output, obj_output.sigmoid(), cls_output.sigmoid()], 1
                 )
 
-                # which features to choose
+               
                 before_nms_features.append(cls_feat2)
                 before_nms_regf.append(reg_feat)
-            outputs_decode.append(output_decode)                        # 三个列表每个列表维度为  16 6  w h （不同尺度）
-            outputs_decode_nopostprocess.append(output_decode)          # yb
-        # 以下前向传播代码都是yolov新增代码
-        self.hw = [x.shape[-2:] for x in outputs_decode]                # 记录每个解码输出的高度和宽度
-        outputs_decode = torch.cat([x.flatten(start_dim=2) for x in outputs_decode], dim=2    # 16  6804 6        
-                                   ).permute(0, 2, 1)                       # 所有层级的解码输出在空间维度（高度和宽度）上展平，并沿通道维度拼接 
-        decode_res = self.decode_outputs(outputs_decode, dtype=xin[0].type()) # 16 6804 6  模型输出的原始预测（通常是相对于特征图网格的坐标和尺度）解码为图像空间中的绝对坐标
+            outputs_decode.append(output_decode)                       
+            outputs_decode_nopostprocess.append(output_decode)         
+       
+        self.hw = [x.shape[-2:] for x in outputs_decode]               
+        outputs_decode = torch.cat([x.flatten(start_dim=2) for x in outputs_decode], dim=2   
+                                   ).permute(0, 2, 1)                      
+        decode_res = self.decode_outputs(outputs_decode, dtype=xin[0].type())
 
         if self.kwargs.get('ota_mode',False) and self.training:
             ota_idxs,reg_targets = self.get_fg_idx( imgs,
@@ -316,8 +296,8 @@ class YOLOXHead(nn.Module):
                 torch.cat(outputs, 1),)
         else:
             ota_idxs = None
-        # bs个列表，每个列表形状为 30 8：30表示每张图片置信度最高的30个框，8表示这些框的信息，坐标，类别..
-        pred_result, pred_idx = self.postpro(decode_res, num_classes=self.num_classes,      #   找出置信度最高的30个特征和索引，并进行极大值抑制
+       
+        pred_result, pred_idx = self.postpro(decode_res, num_classes=self.num_classes,     
                                                      nms_thre=self.nms_thresh,
                                                      topK=self.Afternum,
                                                      ota_idxs=ota_idxs,
@@ -326,77 +306,27 @@ class YOLOXHead(nn.Module):
         if not self.training and imgs.shape[0] == 1:
             return self.postprocess_single_img(pred_result, self.num_classes)
 
-        # 特征聚合与评分
-        cls_feat_flatten = torch.cat(                   # 将所有层级的分类特征展平并拼接，形状为16 6084（3个尺度之和 72*72+36*36+18*18） 128 [batch_size, features, channels  
+       
+        cls_feat_flatten = torch.cat(                  
             [x.flatten(start_dim=2) for x in before_nms_features], dim=2
-        ).permute(0, 2, 1)  # [b,features,channels]
-        reg_feat_flatten = torch.cat(                   # 将所有层级的回归特征展平并拼接，形状为16 6084（3个尺度之和） 128 [batch_size, features, channels
+        ).permute(0, 2, 1) 
+        reg_feat_flatten = torch.cat(                  
             [x.flatten(start_dim=2) for x in before_nms_regf], dim=2
         ).permute(0, 2, 1)
-        # 得到预测结果中得分前30的结果，bs*30 
-        (features_cls, features_reg, cls_scores,            # 480 128
+       
+        (features_cls, features_reg, cls_scores,           
          fg_scores, locs, all_scores) = self.selective_feature(cls_feat_flatten,
                                                                 pred_idx,
                                                                 reg_feat_flatten,
                                                                 imgs,
                                                                 pred_result)
-        
-        # #---------------------origin------------------------------------------------
-        # features_reg = features_reg.unsqueeze(0)  # 1 480 128 
-        # features_cls = features_cls.unsqueeze(0)  # 1 480 128 [1,features,channels]
-
-        # if not self.training:
-        #     cls_scores = cls_scores.to(cls_feat_flatten.dtype)
-        #     fg_scores = fg_scores.to(cls_feat_flatten.dtype)
-        #     locs = locs.to(cls_feat_flatten.dtype)
-        # if self.gmode:
-        #     kwargs = self.kwargs
-        #     kwargs.update({'lframe': lframe, 'gframe': gframe, 'afternum': self.Afternum})
-        #     if self.use_score:              # 输入，筛选出的30个特征以及其得分 features_cls 480 512
-        #         features_cls,fg_scores = self.trans(features_cls, features_reg, cls_scores, fg_scores, sim_thresh=self.sim_thresh,
-        #                                   ave=self.ave, use_mask=self.use_mask, **kwargs)
-        #     else:
-        #         features_cls = self.trans(features_cls, features_reg, None, None,
-        #                                   sim_thresh=self.sim_thresh, ave=self.ave, **kwargs)
-        # if self.lmode:
-        #     if self.both_mode:
-        #         features_cls = self.g2l(features_cls).unsqueeze(0)
-        #     more_args = {'width': imgs.shape[-1], 'height': imgs.shape[-2], 'fg_score': fg_scores,
-        #                  'cls_score': cls_scores,'all_scores':all_scores,'lframe':lframe,
-        #                  'afternum':self.Afternum,'gframe':gframe,'use_score':self.use_score}
-        #     #st = time.time()
-        #     features_cls,features_reg = self.LocalAggregation(features_cls[:, :lframe * self.Afternum],
-        #                                                       features_reg[:, :lframe * self.Afternum],
-        #                                                       locs[:lframe * self.Afternum].view(-1, self.Afternum, 4),
-        #                                                       **more_args)
-        #     if self.kwargs.get('globalBlocks',0):
-        #         kwargs = self.kwargs
-        #         kwargs.update({'lframe': lframe, 'gframe': gframe, 'afternum': self.Afternum})
-        #         features_cls,fg_scores = self.GlobalAggregation(features_cls, features_reg, cls_scores, fg_scores, sim_thresh=self.sim_thresh,
-        #                                   ave=self.ave, use_mask=self.use_mask, **kwargs)
-
-        #     if self.both_mode:
-        #         outputs = [o[:lframe] for o in outputs]
-        #         pred_idx = pred_idx[:lframe]
-        #         pred_result = pred_result[:lframe]
-        # fc_output = self.linear_pred(features_cls)  # 480 2 
-        # fc_output = torch.reshape(fc_output, [-1, self.Afternum, self.num_classes + 1])[:, :, :-1] # [b,afternum,cls]  # 16 30 1
-
-        # if self.kwargs.get('reconf', False):
-        #     conf_output = self.conf_pred(features_reg)
-        #     conf_output = torch.reshape(conf_output, [-1, self.Afternum])
-        # else:
-        #     conf_output = None
-        # #---------------------origin------------------------------------------------
-
-        ##yb-------------------------------------------------------------------------
-        features_cls_att = self.temporal_attn(features_cls)         # 16 30 128
-        features_reg_att = self.temporal_attn(features_reg)         # 16 30 128
-        fc_output = self.linear_pred(features_cls_att)  # # 16 30 2 
-        fc_output = torch.reshape(fc_output, [-1, self.Afternum, self.num_classes + 1])[:, :, :-1] # [b,afternum,cls]  # 16 30 1
-        conf_output = self.conf_pred(features_reg_att)  # 16 30 1
-        conf_output = torch.reshape(conf_output, [-1, self.Afternum])  # 16 30
-        ##yb------------------------------------------------------------------------- 
+        features_cls_att = self.temporal_attn(features_cls)        
+        features_reg_att = self.temporal_attn(features_reg)        
+        fc_output = self.linear_pred(features_cls_att) 
+        fc_output = torch.reshape(fc_output, [-1, self.Afternum, self.num_classes + 1])[:, :, :-1]
+        conf_output = self.conf_pred(features_reg_att) 
+        conf_output = torch.reshape(conf_output, [-1, self.Afternum]) 
+       
             
         if self.training:
             if self.both_mode:
@@ -410,56 +340,56 @@ class YOLOXHead(nn.Module):
                 torch.cat(outputs, 1),
                 origin_preds,
                 dtype=xin[0].dtype,
-                refined_cls = fc_output,            # 新增
-                idx=pred_idx,                       # 新增
-                pred_res = pred_result,             # 新增
-                conf_output = conf_output           # 新增
+                refined_cls = fc_output,           
+                idx=pred_idx,                      
+                pred_res = pred_result,            
+                conf_output = conf_output          
             )
         else:
-            # ##----------yb-nopostprocess----------------------------
-            # outputs = torch.cat(
-            #     [x.flatten(start_dim=2) for x in outputs], dim=2
-            # ).permute(0, 2, 1)
-            # if self.decode_in_inference:
-            #     return self.decode_outputs(outputs, dtype=xin[0].type())
-            # else:
-            #     return outputs
-            # ##----------yb-nopostprocess----------------------------
+           
+           
+           
+           
+           
+           
+           
+           
+           
 
-            #--------------origin---------------------------------
+           
             result, result_ori = postprocess(copy.deepcopy(pred_result),
                                              self.num_classes,
                                              fc_output,
                                              conf_output = conf_output,
                                              nms_thre=nms_thresh,
                                              )
-            return result, result_ori  # result
-            #--------------origin---------------------------------
+            return result, result_ori 
+           
         
-    # 将卷积层的输出 (output) 转换为适合解码边界框（bounding boxes）的格式
-    # 将预测的 x 和 y 坐标与网格偏移相加，并乘以步幅，将其映射回原始图像空间。
-    # 对 w 和 h 使用指数函数并乘以步幅，确保宽度和高度为正数并映射回原始图像空间
+   
+   
+   
     def get_output_and_grid(self, output, k, stride, dtype):
-        grid = self.grids[k]            # self.grids 长度为3的列表
+        grid = self.grids[k]           
 
         batch_size = output.shape[0]
-        n_ch = 5 + self.num_classes             # 6 坐标4+1置信度+1类别
+        n_ch = 5 + self.num_classes            
         hsize, wsize = output.shape[-2:]
-        if grid.shape[2:4] != output.shape[2:4]:  # 重新调整网格尺寸 最终网格维度 1 1 72 72 2  2表示每个位置包含xy坐标
+        if grid.shape[2:4] != output.shape[2:4]: 
             yv, xv = torch.meshgrid([torch.arange(hsize), torch.arange(wsize)])
             grid = torch.stack((xv, yv), 2).view(1, 1, hsize, wsize, 2).type(dtype)
             self.grids[k] = grid       
 
-        output = output.view(batch_size, self.n_anchors, n_ch, hsize, wsize)  #调整输出特征形状 16 1 6 72 72  [batch_size, n_anchors, n_ch, hsize, wsize]
-        output = output.permute(0, 1, 3, 4, 2).reshape(                 # 最终形状  16 5184 6  [batch_size, n_anchors * hsize * wsize, n_ch]
+        output = output.view(batch_size, self.n_anchors, n_ch, hsize, wsize) 
+        output = output.permute(0, 1, 3, 4, 2).reshape(                
             batch_size, self.n_anchors * hsize * wsize, -1
         )
-        grid = grid.view(1, -1, 2)                          # 1 5184 2  与输出的预测信息进行匹配和计算
-        output[..., :2] = (output[..., :2] + grid) * stride # output[..., :2] 表示预测框的 x 和 y 偏移量 形状为16 5184 2  将偏移量与网格坐标相加，得到相对于原始网格点的坐标， 原始图像上的绝对坐标
-        output[..., 2:4] = torch.exp(output[..., 2:4]) * stride # output[..., 2:4] 表示预测框的宽度和高度（w, h），原始图像上的绝对宽度和高度
-        return output, grid  # 调整后的预期信息 16 5184 6  调整后的网格坐标grid 1 5184 2
+        grid = grid.view(1, -1, 2)                         
+        output[..., :2] = (output[..., :2] + grid) * stride
+        output[..., 2:4] = torch.exp(output[..., 2:4]) * stride
+        return output, grid 
 
-    # 将模型的预测转换为实际图像中的位置信息
+   
     def decode_outputs(self, outputs, dtype, flevel=0):
         grids = []
         strides = []
@@ -476,43 +406,43 @@ class YOLOXHead(nn.Module):
         outputs[..., :2] = (outputs[..., :2] + grids) * strides
         outputs[..., 2:4] = torch.exp(outputs[..., 2:4]) * strides
         return outputs
-    #  从给定的特征和预测中，根据提供的索引 (idxs)，提取相关的分类特征、回归特征以及对应的得分 
-    #  features 16 6804 128 
-    #  idxs 16个列表，每个列表中的张量形状为30，即每张图片中找到的置信度最大的像素值的索引
-    #  reg_features 16 6804 128
-    #  imgs 16 3  576 576
-    #  predictions 16个列表形状为 30 8 ，即每张图片所对应的信息，边界框xywh，目标置信度、类别置信度等等。
+   
+   
+   
+   
+   
+   
     def selective_feature(self, features, idxs, reg_features, imgs=None, predictions=None, roi_features=None): 
         features_cls = []
         features_reg = []
         cls_scores, all_scores = [], []
         fg_scores = []
         locs = []
-        for i, feature in enumerate(features):                               # 16个列表，每个列表形状30 128
-            features_cls.append(feature[idxs[i][:self.simN]])                # 根据索引idxs[i]中的索引 提取前 simN 个分类特征并添加到 features_cls 中
-            features_reg.append(reg_features[i, idxs[i][:self.simN]])        # 根据索引，提取前 simN 个回归特征并添加到 features_reg 中
-            cls_scores.append(predictions[i][:self.simN, 5])                 # 提取预测结果中类别得分部分（从第6列开始），并添加到 cls_scores 中
-            fg_scores.append(predictions[i][:self.simN, 4])                  # 提取预测结果中前景得分（第5列），并添加到 fg_scores 中
-            locs.append(predictions[i][:self.simN, :4])                      # 提取预测结果中边界框坐标（前4列），并添加到 locs 中
-            all_scores.append(predictions[i][:self.simN, -self.num_classes:]) # 提取预测结果中所有类别的得分，并添加到 all_scores 中
+        for i, feature in enumerate(features):                              
+            features_cls.append(feature[idxs[i][:self.simN]])               
+            features_reg.append(reg_features[i, idxs[i][:self.simN]])       
+            cls_scores.append(predictions[i][:self.simN, 5])                
+            fg_scores.append(predictions[i][:self.simN, 4])                 
+            locs.append(predictions[i][:self.simN, :4])                     
+            all_scores.append(predictions[i][:self.simN, -self.num_classes:])
 
-        #yb----------------    
-        features_cls = torch.stack(features_cls, dim=0)          # 拼接所有提取的特征和得分：16个30 128的列表 沿第0维度拼接 480 128
-        features_reg = torch.stack(features_reg, dim=0)          # 同上 480 128
-        cls_scores = torch.stack(cls_scores, dim=0)              # 同上 480 
-        fg_scores = torch.stack(fg_scores, dim=0)                # 同上 480 
-        locs = torch.stack(locs, dim=0)                          # 同上 480 4
-        all_scores = torch.stack(all_scores, dim=0)              # 同上 480 4 
-        #yb---------------- 
+       
+        features_cls = torch.stack(features_cls, dim=0)         
+        features_reg = torch.stack(features_reg, dim=0)         
+        cls_scores = torch.stack(cls_scores, dim=0)             
+        fg_scores = torch.stack(fg_scores, dim=0)               
+        locs = torch.stack(locs, dim=0)                         
+        all_scores = torch.stack(all_scores, dim=0)             
+       
 
-        # #-----------orgin-----------------------------------
-        # features_cls = torch.cat(features_cls)          # 拼接所有提取的特征和得分：16个30 128的列表 沿第0维度拼接 480 128
-        # features_reg = torch.cat(features_reg)          # 同上 480 128
-        # cls_scores = torch.cat(cls_scores)              # 同上 480 
-        # fg_scores = torch.cat(fg_scores)                # 同上 480 
-        # locs = torch.cat(locs)                          # 同上 480 4
-        # all_scores = torch.cat(all_scores)              # 同上 480 4 
-        # #-----------orgin-----------------------------------
+       
+       
+       
+       
+       
+       
+       
+       
         return features_cls, features_reg, cls_scores, fg_scores, locs, all_scores
 
     def get_losses(
@@ -530,21 +460,21 @@ class YOLOXHead(nn.Module):
             pred_res,
             conf_output=None,
     ):
-        bbox_preds = outputs[:, :, :4]  # [batch, n_anchors_all, 4]
-        obj_preds = outputs[:, :, 4].unsqueeze(-1)  # [batch, n_anchors_all, 1]
-        cls_preds = outputs[:, :, 5:]  # [batch, n_anchors_all, n_cls]
+        bbox_preds = outputs[:, :, :4] 
+        obj_preds = outputs[:, :, 4].unsqueeze(-1) 
+        cls_preds = outputs[:, :, 5:] 
 
-        # calculate targets             #mixup 新增
+       
         mixup = labels.shape[2] > 5     
         if mixup:
             label_cut = labels[..., :5]
         else:
             label_cut = labels
-        nlabel = (label_cut.sum(dim=2) > 0).sum(dim=1)  # number of objects
+        nlabel = (label_cut.sum(dim=2) > 0).sum(dim=1) 
 
         total_num_anchors = outputs.shape[1]
-        x_shifts = torch.cat(x_shifts, 1)  # [1, n_anchors_all]
-        y_shifts = torch.cat(y_shifts, 1)  # [1, n_anchors_all]
+        x_shifts = torch.cat(x_shifts, 1) 
+        y_shifts = torch.cat(y_shifts, 1) 
         expanded_strides = torch.cat(expanded_strides, 1)
         if self.use_l1:
             origin_preds = torch.cat(origin_preds, 1)
@@ -557,8 +487,8 @@ class YOLOXHead(nn.Module):
         ref_targets = []
         num_fg = 0.0
         num_gts = 0.0
-        ref_masks = []          # 新增      
-        conf_targets = []       # 新增  
+        ref_masks = []         
+        conf_targets = []      
         for batch_idx in range(outputs.shape[0]):
             num_gt = int(nlabel[batch_idx])
             num_gts += num_gt
@@ -568,13 +498,13 @@ class YOLOXHead(nn.Module):
                 l1_target = outputs.new_zeros((0, 4))
                 obj_target = outputs.new_zeros((total_num_anchors, 1))
                 fg_mask = outputs.new_zeros(total_num_anchors).bool()
-                ref_target = outputs.new_zeros((idx[batch_idx].shape[0], self.num_classes + 1))         # 新增  
-                conf_target = outputs.new_zeros((idx[batch_idx].shape[0], 1))                           # 新增  
+                ref_target = outputs.new_zeros((idx[batch_idx].shape[0], self.num_classes + 1))        
+                conf_target = outputs.new_zeros((idx[batch_idx].shape[0], 1))                          
                 ref_target[:, -1] = 1                       
 
             else:
                 gt_bboxes_per_image = labels[batch_idx, :num_gt, 1:5]
-                gt_classes = labels[batch_idx, :num_gt, 0]  # [batch,120,class+xywh]
+                gt_classes = labels[batch_idx, :num_gt, 0] 
                 bboxes_preds_per_image = bbox_preds[batch_idx]
 
                 try:
@@ -584,7 +514,7 @@ class YOLOXHead(nn.Module):
                         pred_ious_this_matching,
                         matched_gt_inds,
                         num_fg_img,
-                    ) = self.get_assignments(  # noqa
+                    ) = self.get_assignments( 
                         batch_idx,
                         num_gt,
                         total_num_anchors,
@@ -613,7 +543,7 @@ class YOLOXHead(nn.Module):
                         pred_ious_this_matching,
                         matched_gt_inds,
                         num_fg_img,
-                    ) = self.get_assignments(  # noqa
+                    ) = self.get_assignments( 
                         batch_idx,
                         num_gt,
                         total_num_anchors,
@@ -731,7 +661,7 @@ class YOLOXHead(nn.Module):
                     self.bcewithlog_loss(conf_output.view(-1, 1), conf_targets)
             ).sum() / num_fg
             if loss_rconf>20:
-                #clip the loss
+               
                 loss_rconf = 1/loss_rconf*10
         else:
             loss_rconf = 0.0
@@ -869,7 +799,7 @@ class YOLOXHead(nn.Module):
             (x_shifts_per_image + 0.5 * expanded_strides_per_image)
             .unsqueeze(0)
             .repeat(num_gt, 1)
-        )  # [n_anchor] -> [n_gt, n_anchor]
+        ) 
         y_centers_per_image = (
             (y_shifts_per_image + 0.5 * expanded_strides_per_image)
             .unsqueeze(0)
@@ -905,7 +835,7 @@ class YOLOXHead(nn.Module):
 
         is_in_boxes = bbox_deltas.min(dim=-1).values > 0.0
         is_in_boxes_all = is_in_boxes.sum(dim=0) > 0
-        # in fixed center
+       
 
         center_radius = 4.5
 
@@ -930,7 +860,7 @@ class YOLOXHead(nn.Module):
         is_in_centers = center_deltas.min(dim=-1).values > 0.0
         is_in_centers_all = is_in_centers.sum(dim=0) > 0
 
-        # in boxes and in centers
+       
         is_in_boxes_anchor = is_in_boxes_all | is_in_centers_all
 
         is_in_boxes_and_center = (
@@ -939,8 +869,8 @@ class YOLOXHead(nn.Module):
         return is_in_boxes_anchor, is_in_boxes_and_center
 
     def dynamic_k_matching(self, cost, pair_wise_ious, gt_classes, num_gt, fg_mask):
-        # Dynamic K
-        # ---------------------------------------------------------------
+       
+       
         matching_matrix = torch.zeros_like(cost)
 
         ious_in_boxes_matrix = pair_wise_ious
@@ -993,7 +923,7 @@ class YOLOXHead(nn.Module):
         return detections[topk_idx, :], topk_idx
 
     def postpro(self, prediction, num_classes, nms_thre=0.75, topK=75, ota_idxs=None):
-        # find topK predictions, play the same role as RPN
+       
         '''
         边界框坐标转换：将模型预测的边界框从中心坐标和宽高表示转换为左上角和右下角坐标表示。
         处理 OTA 模式：如果在训练阶段并且启用了 OTA Optimal Transport Assignment模式,直接使用 OTA 提供的索引进行筛选。
@@ -1012,18 +942,18 @@ class YOLOXHead(nn.Module):
             [batch,topK,5+clsnum]
         '''
         self.topK = topK
-        box_corner = prediction.new(prediction.shape)                       # 将xywh 转化为xyxy
+        box_corner = prediction.new(prediction.shape)                      
         box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
         box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
         box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
         box_corner[:, :, 3] = prediction[:, :, 1] + prediction[:, :, 3] / 2
         prediction[:, :, :4] = box_corner[:, :, :4]
 
-        output = [None for _ in range(len(prediction))]             # 用于存储每张图像筛选后的检测框
-        output_index = [None for _ in range(len(prediction))]       # 用于存储每张图像筛选后的检测框在原始预测中的索引
+        output = [None for _ in range(len(prediction))]            
+        output_index = [None for _ in range(len(prediction))]      
 
         for i, image_pred in enumerate(prediction):
-            #take ota idxs as output in training mode
+           
             if ota_idxs is not None and len(ota_idxs[i]) > 0:
                 ota_idx = ota_idxs[i]
                 topk_idx = torch.stack(ota_idx).type_as(image_pred)
@@ -1033,30 +963,30 @@ class YOLOXHead(nn.Module):
 
             if not image_pred.size(0):
                 continue
-            # Get score and class with highest confidence  image_pred 6804 6 得出当前图片属于哪一个类别和该类别的置信度得分
-            class_conf, class_pred = torch.max(image_pred[:, 5: 5 + num_classes], 1, keepdim=True)  # 计算每个检测框的类别置信度 class_conf 和类别索引 class_pred，即选择置信度最高的类别
+           
+            class_conf, class_pred = torch.max(image_pred[:, 5: 5 + num_classes], 1, keepdim=True) 
 
-            # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
-            # 得到检测框 目标置信度 obj_conf、类别置信度 class_conf、类别索引  [feature_num, 5 + 1 + 1 + clsnum]
+           
+           
             detections = torch.cat(
                 (image_pred[:, :5], class_conf, class_pred.float(), image_pred[:, 5: 5 + num_classes]), 1)
 
-            conf_score = image_pred[:, 4]           # 6804 每个像素的目标置信度  
-            top_pre = torch.topk(conf_score, k=self.Prenum) # 选择目标置信度最高的 self.Prenum 个像素 750个
-            sort_idx = top_pre.indices[:self.Prenum]        # 选择出的前 self.Prenum 个检测框的索引
-            detections_temp = detections[sort_idx, :]       # 目标置信度最高的 self.Prenum 个检测框的信息
-            nms_out_index = torchvision.ops.batched_nms(    # 对检测框应用 NMS
+            conf_score = image_pred[:, 4]          
+            top_pre = torch.topk(conf_score, k=self.Prenum)
+            sort_idx = top_pre.indices[:self.Prenum]       
+            detections_temp = detections[sort_idx, :]      
+            nms_out_index = torchvision.ops.batched_nms(   
                 detections_temp[:, :4],
                 detections_temp[:, 4] * detections_temp[:, 5],
                 detections_temp[:, 6],
                 nms_thre,
             )
 
-            topk_idx = sort_idx[nms_out_index[:self.topK]]  # 从原始检测框索引 sort_idx 中选择 NMS 筛选后的前 self.topK 个检测框的索引
-            output[i] = detections[topk_idx, :]             # 存储筛选后的检测框信息
-            output_index[i] = topk_idx                      # 存储筛选后的检测框在原始预测中的索引
+            topk_idx = sort_idx[nms_out_index[:self.topK]] 
+            output[i] = detections[topk_idx, :]            
+            output_index[i] = topk_idx                     
 
-        return output, output_index                         # bs个列表，每个列表为 30 8： 30表示每张图片置信度最高的30个框，8表示这些框的信息，坐标，类别..
+        return output, output_index                        
 
     def postprocess_single_img(self, prediction, num_classes, conf_thre=0.001, nms_thre=0.5):
 
@@ -1079,7 +1009,7 @@ class YOLOXHead(nn.Module):
             )
             detections_ori = detections_ori[nms_out_index]
             output_ori[i] = detections_ori
-        # print(output)
+       
         return output_ori, output_ori
 
 
@@ -1091,21 +1021,21 @@ class YOLOXHead(nn.Module):
             labels,
             outputs,
     ):
-        bbox_preds = outputs[:, :, :4]  # [batch, n_anchors_all, 4]
-        obj_preds = outputs[:, :, 4].unsqueeze(-1)  # [batch, n_anchors_all, 1]
-        cls_preds = outputs[:, :, 5:]  # [batch, n_anchors_all, n_cls]
+        bbox_preds = outputs[:, :, :4] 
+        obj_preds = outputs[:, :, 4].unsqueeze(-1) 
+        cls_preds = outputs[:, :, 5:] 
 
-        # calculate targets
+       
         mixup = labels.shape[2] > 5
         if mixup:
             label_cut = labels[..., :5]
         else:
             label_cut = labels
-        nlabel = (label_cut.sum(dim=2) > 0).sum(dim=1)  # number of objects
+        nlabel = (label_cut.sum(dim=2) > 0).sum(dim=1) 
 
         total_num_anchors = outputs.shape[1]
-        x_shifts = torch.cat(x_shifts, 1)  # [1, n_anchors_all]
-        y_shifts = torch.cat(y_shifts, 1)  # [1, n_anchors_all]
+        x_shifts = torch.cat(x_shifts, 1) 
+        y_shifts = torch.cat(y_shifts, 1) 
         expanded_strides = torch.cat(expanded_strides, 1)
 
         num_gts = 0.0
@@ -1120,7 +1050,7 @@ class YOLOXHead(nn.Module):
 
             else:
                 gt_bboxes_per_image = labels[batch_idx, :num_gt, 1:5]
-                gt_classes = labels[batch_idx, :num_gt, 0]  # [batch,120,class+xywh]
+                gt_classes = labels[batch_idx, :num_gt, 0] 
                 bboxes_preds_per_image = bbox_preds[batch_idx]
 
                 try:
@@ -1130,7 +1060,7 @@ class YOLOXHead(nn.Module):
                         pred_ious_this_matching,
                         matched_gt_inds,
                         num_fg_img,
-                    ) = self.get_assignments(  # noqa
+                    ) = self.get_assignments( 
                         batch_idx,
                         num_gt,
                         total_num_anchors,
@@ -1159,7 +1089,7 @@ class YOLOXHead(nn.Module):
                         pred_ious_this_matching,
                         matched_gt_inds,
                         num_fg_img,
-                    ) = self.get_assignments(  # noqa
+                    ) = self.get_assignments( 
                         batch_idx,
                         num_gt,
                         total_num_anchors,
@@ -1192,12 +1122,12 @@ class YOLOXHead(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, embed_dim, max_len=5000):
         super(PositionalEncoding, self).__init__()
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # [max_len, 1]
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1) 
         div_term = torch.exp(torch.arange(0, embed_dim, 2).float() * (-torch.log(torch.tensor(10000.0)) / embed_dim))
-        pe = torch.zeros(max_len, embed_dim)  # [max_len, embed_dim]
-        pe[:, 0::2] = torch.sin(position * div_term)  # 偶数维
-        pe[:, 1::2] = torch.cos(position * div_term)  # 奇数维
-        pe = pe.unsqueeze(0)  # [1, max_len, embed_dim]
+        pe = torch.zeros(max_len, embed_dim) 
+        pe[:, 0::2] = torch.sin(position * div_term) 
+        pe[:, 1::2] = torch.cos(position * div_term) 
+        pe = pe.unsqueeze(0) 
         self.register_buffer('pe', pe)
     
     def forward(self, x):
@@ -1207,8 +1137,8 @@ class PositionalEncoding(nn.Module):
         Returns:
             Tensor: x + positional encoding
         """
-        # print(f"x shape: {x.shape}")
-        # print(f"self.pe shape: {self.pe.shape}")
+       
+       
         x = x + self.pe[:, :x.size(1), :].to(x.device)
         return x
 
@@ -1238,28 +1168,28 @@ class TemporalAttention(nn.Module):
         Returns:
             Tensor of shape [B, N, C] after applying temporal attention
         """
-        B, N, C = x.size()  # [16, 30, 128]
+        B, N, C = x.size() 
         
-        # Transpose to [N, B, C] to treat N as batch size for attention
-        x_transposed = x.permute(1, 0, 2)  # [30, 16, 128]
+       
+        x_transposed = x.permute(1, 0, 2) 
         
-        # 添加位置编码
-        x_transposed = self.pos_encoder(x_transposed)  # [30, 16, 128]
+       
+        x_transposed = self.pos_encoder(x_transposed) 
         
-        # 应用多头自注意力
-        attn_output, attn_weights = self.attn(x_transposed, x_transposed, x_transposed)  # [30, 16, 128]
+       
+        attn_output, attn_weights = self.attn(x_transposed, x_transposed, x_transposed) 
         
-        # 残差连接和层归一化
-        attn_output = self.layer_norm1(attn_output + x_transposed)  # [30, 16, 128]
+       
+        attn_output = self.layer_norm1(attn_output + x_transposed) 
         
-        # 前馈网络
-        ffn_output = self.ffn(attn_output)  # [30, 16, 128]
+       
+        ffn_output = self.ffn(attn_output) 
         
-        # 残差连接和层归一化
-        output = self.layer_norm2(ffn_output + attn_output)  # [30, 16, 128]
+       
+        output = self.layer_norm2(ffn_output + attn_output) 
         
-        # 转置回 [B, N, C]
-        output = output.permute(1, 0, 2)  # [16, 30, 128]
+       
+        output = output.permute(1, 0, 2) 
         
         return output
 #  源码
@@ -1279,45 +1209,45 @@ class RetNetRelPos1d(nn.Module):
         
     def generate_decay_mask(self, seq_len: int):
         index = torch.arange(seq_len).to(self.decay)
-        mask = index[:, None] - index[None, :]  # [seq_len, seq_len]
-        mask = mask.abs()  # Absolute distance
-        mask = mask * self.decay[:, None, None]  # [num_heads, seq_len, seq_len]
-        return mask  # 衰减掩码
+        mask = index[:, None] - index[None, :] 
+        mask = mask.abs() 
+        mask = mask * self.decay[:, None, None] 
+        return mask 
     
-    def forward(self, seq_len: int):             #orgin
-        # 生成相对位置的正弦/余弦编码
+    def forward(self, seq_len: int):            
+       
         index = torch.arange(seq_len).to(self.decay)
-        sin = torch.sin(index[:, None] * self.angle[None, :])  # [seq_len, embed_dim]
-        cos = torch.cos(index[:, None] * self.angle[None, :])  # [seq_len, embed_dim]
-        # 生成衰减掩码
-        mask = self.generate_decay_mask(seq_len)  # [num_heads, seq_len, seq_len]
+        sin = torch.sin(index[:, None] * self.angle[None, :]) 
+        cos = torch.cos(index[:, None] * self.angle[None, :]) 
+       
+        mask = self.generate_decay_mask(seq_len) 
         return (sin, cos), mask
     
-    # def forward(self, seq_len: int):    # new_pos
-    #     index = torch.arange(seq_len).to(self.decay)
-    #     sin = torch.sin(index[:, None] * self.angle[None, :])
-    #     cos = torch.cos(index[:, None] * self.angle[None, :])
-    #     mask = torch.tril(torch.ones(seq_len, seq_len).to(self.decay))
-    #     mask = torch.masked_fill(index[:, None] - index[None, :], ~mask.bool(), float("inf"))
-    #     mask = torch.exp(mask * self.decay[:, None, None])
-    #     mask = torch.nan_to_num(mask)
-    #     mask = mask / mask.sum(dim=-1, keepdim=True).sqrt()
-    #     retention_rel_pos = ((sin, cos), mask)
-    #     return retention_rel_pos
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
     
-class SSTA(nn.Module):                         # Selective Spatio-Temporal Aggregation
+class SSTA(nn.Module):                        
     def __init__(self, embed_dim=128, num_heads=8, dropout=0.1, max_len=16):
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
-        # 替换位置编码模块
+       
         self.pos_encoder = RetNetRelPos1d(
             embed_dim=embed_dim,
             num_heads=num_heads,
             initial_value=1,
             heads_range=3
         )
-        # 调整MultiheadAttention为自定义实现
+       
         self.q_proj = nn.Linear(embed_dim, embed_dim)
         self.k_proj = nn.Linear(embed_dim, embed_dim)
         self.v_proj = nn.Linear(embed_dim, embed_dim)
@@ -1332,39 +1262,38 @@ class SSTA(nn.Module):                         # Selective Spatio-Temporal Aggre
         )
     
     def forward(self, x):
-        B, N, C = x.size()  # [16, 30, 128]
-        x = x.permute(1, 0, 2)  # [30, 16, 128]
+        B, N, C = x.size() 
+        x = x.permute(1, 0, 2) 
         
-        # 生成相对位置编码与掩码
-        (sin, cos), mask = self.pos_encoder(seq_len=x.size(1))  # seq_len=16
+       
+        (sin, cos), mask = self.pos_encoder(seq_len=x.size(1)) 
         
-        # 生成Q/K/V并分头
-        q = self.q_proj(x).view(x.size(0), x.size(1), self.num_heads, C // self.num_heads).permute(2, 0, 1, 3)  # 8 30 16 16
-        k = self.k_proj(x).view(x.size(0), x.size(1), self.num_heads, C // self.num_heads).permute(2, 0, 1, 3)  # 8 30 16 16
-        v = self.v_proj(x).view(x.size(0), x.size(1), self.num_heads, C // self.num_heads).permute(2, 0, 1, 3)  # 8 30 16 16
+       
+        q = self.q_proj(x).view(x.size(0), x.size(1), self.num_heads, C // self.num_heads).permute(2, 0, 1, 3) 
+        k = self.k_proj(x).view(x.size(0), x.size(1), self.num_heads, C // self.num_heads).permute(2, 0, 1, 3) 
+        v = self.v_proj(x).view(x.size(0), x.size(1), self.num_heads, C // self.num_heads).permute(2, 0, 1, 3) 
         
-        # 应用相对位置编码（旋转嵌入）
-        q = rotary_emb(q, sin, cos)   # 8 30 16 16
-        k = rotary_emb(k, sin, cos)   # 8 30 16 16
+       
+        q = rotary_emb(q, sin, cos)  
+        k = rotary_emb(k, sin, cos)  
         
-        # 计算注意力分数
-        scores = torch.einsum("hnqd,hnkd->hnqk", q, k)   # 8 30 16 16 # [num_heads, N, seq_len, seq_len]
-        scores += mask.unsqueeze(1)  # 添加衰减掩码     # 8 30 16 16
-        attn = torch.softmax(scores, dim=-1)  # 8 30 16 16
-        attn = self.dropout(attn)  # 8 30 16 16
+       
+        scores = torch.einsum("hnqd,hnkd->hnqk", q, k)  
+        scores += mask.unsqueeze(1) 
+        attn = torch.softmax(scores, dim=-1) 
+        attn = self.dropout(attn) 
         
-        # 聚合Value
-        output = torch.einsum("hnqk,hnkd->hnqd", attn, v) # 8 30 16 16
-        output = output.permute(1, 2, 0, 3).contiguous().view(x.size(0), x.size(1), C)  # 30 16 128
+       
+        output = torch.einsum("hnqk,hnkd->hnqd", attn, v)
+        output = output.permute(1, 2, 0, 3).contiguous().view(x.size(0), x.size(1), C) 
         
-        # 残差连接与后续处理
-        output = self.layer_norm1(output + x)  # 30 16 128
-        ffn_output = self.ffn(output)   # 30 16 128
-        output = self.layer_norm2(ffn_output + output)  # 30 16 128
+       
+        output = self.layer_norm1(output + x) 
+        ffn_output = self.ffn(output)  
+        output = self.layer_norm2(ffn_output + output) 
         
-        return output.permute(1, 0, 2)  # 还原为 [16, 30, 128]
+        return output.permute(1, 0, 2) 
 
 def rotary_emb(x, sin, cos):
-    """应用旋转位置编码（简化版）"""
     x_rot = x * cos + torch.cat([-x[..., 1::2], x[..., ::2]], dim=-1) * sin
     return x_rot

@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="c4e65434-64a5-432e-ba6b-0c1452147dac" name="Changes" comment="" />
+    <list default="true" id="c4e65434-64a5-432e-ba6b-0c1452147dac" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/exps/yolov/yolov_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/yolov/yolov_base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/exp/yolox_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/exp/yolox_base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/models/darknet.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/darknet.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/models/myolox.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/myolox.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/models/yolo_pafpn.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/yolo_pafpn.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/models/yolovp_msa.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/yolovp_msa.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
@@ -16,12 +26,12 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -32,5 +42,16 @@
       <updated>1744025720566</updated>
     </task>
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
 </project>
