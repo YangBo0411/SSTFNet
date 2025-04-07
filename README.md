@@ -5,4 +5,14 @@
 ## Usage
 ### Requirements
 Tested on Linux , with Python 3.8, PyTorch 2.4.0, cuda 11.8.
-pip install the requirements.txt
+
+### Installation
+
+conda create -n sstfnet python=3.8
+
+conda activate sstfnet
+
+pip install -r requirements.txt
+
+pip3 install -v -e .
+
