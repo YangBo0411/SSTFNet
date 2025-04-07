@@ -16,3 +16,7 @@ pip install -r requirements.txt
 
 pip3 install -v -e .
 
+### Train on Custom Datasets
+The dataset format is as follows
+![image](https://github.com/YangBo0411/SSTFNet/blob/main/fig2.png)
+
