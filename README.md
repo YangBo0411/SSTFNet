@@ -1,2 +1,22 @@
-# SSTFNet
- 
+# SSTFNet: Sparse Spatio-Temporal-Frequency Feature Fusion Network for Multi-frame Infrared Small Target Detection
+## The overall architecture
+![image](https://github.com/YangBo0411/SSTFNet/blob/main/fig1.png)
+
+## Usage
+### Requirements
+Tested on Linux , with Python 3.8, PyTorch 2.4.0, cuda 11.8.
+
+### Installation
+
+conda create -n sstfnet python=3.8
+
+conda activate sstfnet
+
+pip install -r requirements.txt
+
+pip3 install -v -e .
+
+### Train on Custom Datasets
+The dataset format is as follows
+![image](https://github.com/YangBo0411/SSTFNet/blob/main/fig2.png)
+
