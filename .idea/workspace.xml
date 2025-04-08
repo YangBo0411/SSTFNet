@@ -2,12 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="c4e65434-64a5-432e-ba6b-0c1452147dac" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/exps/yolov/yolov_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/yolov/yolov_base.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yolox/exp/yolox_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/exp/yolox_base.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yolox/models/darknet.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/darknet.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yolox/models/myolox.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/myolox.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yolox/models/yolo_pafpn.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/yolo_pafpn.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yolox/models/yolovp_msa.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/yolovp_msa.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/demo/MegEngine/python/demo.py" beforeDir="false" afterPath="$PROJECT_DIR$/demo/MegEngine/python/demo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/exp/base_exp.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/exp/base_exp.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

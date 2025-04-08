@@ -204,7 +204,7 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
 
 
 def main(args):
-    file_name = os.path.join("./yolox_outputs", args.name)
+    file_name = os.path.join("./results", args.name)
     os.makedirs(file_name, exist_ok=True)
 
     if args.save_result:
