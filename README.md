@@ -21,15 +21,15 @@ The dataset format is as follows:
 
 ![image](https://github.com/YangBo0411/SSTFNet/blob/main/fig2.png)
 
-Step 1: Train the basic detector:
+Step 1: Train the basic detector
 
 CUDA_VISIBLE_DEVICES=2 python tools/train.py -f /data/yb/track/SSTFNet/exps/default/yolox_s.py
 
-Step 2: Aggregate spatio-temporal features:
+Step 2: Aggregate spatio-temporal features
 
 CUDA_VISIBLE_DEVICES=2 python tools/vid_train.py -f /data/yb/track/SSTFNet/exps/yolov/yolov_s.py -c /data/yb/track/SSTFNet/results/X-ITSDT-73-1-0.854-0.426-0.497/best_ckpt.pth
 
-Step 3: validate:
+Step 3: validate
 
 CUDA_VISIBLE_DEVICES=0 python tools/vid_eval.py  -f /data/yb/track/SSTFNet/exps/yolov/yolov_s.py -c /data/yb/track/SSTFNet/results/yolov_s_MSSFA_CSCF_SSTA-1-0.927-0.527-0.609/best_ckpt.pth
 
