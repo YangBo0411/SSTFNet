@@ -588,17 +588,6 @@ class PAFPN(nn.Module):
         self.hff_p1 = CSCF(dim=int(in_channels[1] * width)) 
         self.hff_p0 = CSCF(dim=int(in_channels[2] * width)) 
 
-       
-       
-       
-
-       
-       
-       
-
-       
-       
-       
     def forward(self, input):
         """
         Args:
@@ -608,7 +597,6 @@ class PAFPN(nn.Module):
             Tuple[Tensor]: FPN feature.
         """
 
-       
         out_features = self.backbone(input)
         features = [out_features[f] for f in self.in_features]
         [x2, x1, x0] = features                
@@ -641,7 +629,6 @@ class PAFPN(nn.Module):
 
         outputs = (pan_out2, pan_out1, pan_out0)
         return outputs
-
 
 from .swin_transfomer import SwinTransformer
 class YOLOPAFPN_Swin(nn.Module):

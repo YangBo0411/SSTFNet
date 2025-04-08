@@ -2,9 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="c4e65434-64a5-432e-ba6b-0c1452147dac" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/demo/MegEngine/python/demo.py" beforeDir="false" afterPath="$PROJECT_DIR$/demo/MegEngine/python/demo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/yolox/exp/base_exp.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/exp/base_exp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/yolox/models/yolo_pafpn.py" beforeDir="false" afterPath="$PROJECT_DIR$/yolox/models/yolo_pafpn.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
